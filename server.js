@@ -66,7 +66,6 @@ randomChar = () => {
 
 
 var emoji = require('node-emoji');
-let playerCount = 0;
 let gameLock = false;
 const minPlayers = 2;
 let firstSubmission = false;
@@ -91,7 +90,11 @@ io.on('connection', function (socket) {
   const joinWaitingRoom = () => {
     socket.join('waiting-room');
     players[sessionID] = socket;
-
+    const playerCount = io.sockets.adapter.rooms['waiting-room'].length;
+    if (gameLock){
+      socket.emit('waiting-game');
+      return;
+    }
     if (playerCount < minPlayers) {
       console.log("Waiting players");
       console.log(sessionID);
@@ -114,6 +117,7 @@ io.on('connection', function (socket) {
         players[key].join('game');
       }
       currChar = randomChar();
+      currChar = 'A';
       console.log(currChar);
       io.to('game').emit('start-game', currChar);
       gameLock = true;
@@ -123,6 +127,20 @@ io.on('connection', function (socket) {
     }
   };
 
+  socket.on('rejoin', function () {
+    console.log('Rejoin');
+    joinWaitingRoom();
+  })
+
+  socket.on('disconnect', function () {
+    console.log("Before"+ players);
+    if (Object.keys(players).length === 1) {
+      players = {}
+    } else {
+      delete players[sessionID];
+    }
+    console.log("After" +players);
+  })
   socket.on('say to someone', function (id, msg) {
     socket.broadcast.to(id).emit('my message', msg);
   });
@@ -138,7 +156,9 @@ io.on('connection', function (socket) {
     const roomCount = io.sockets.adapter.rooms['game'].length;
     console.log("roomCount");
     if (submitCount === roomCount) {
+      io.to('game').emit('grading');
       gradeSubmission(submissions);
+      submissions = {};
     }
   });
 
@@ -156,7 +176,6 @@ io.on('connection', function (socket) {
 
   socket.on('confirm-setup', () => {
     console.log("Confirm Setup");
-    playerCount++;
     joinWaitingRoom();
   });
   const endGame = () => {
@@ -166,6 +185,10 @@ io.on('connection', function (socket) {
     let grades = {}
     let countwords = {"nombre":{}, "color":{}, "fruto":{}}
     console.log("Grading submission");
+    io.to(Object.keys(submissions)[0]).emit('test','hello 1');
+    io.to(`${Object.keys(submissions)[0]}`).emit('test','hello');
+    io.to(Object.keys(submissions)[1]).emit('test','bye 1');
+    io.to(`${Object.keys(submissions)[1]}`).emit('test','bye');
 
     // Count occurrences
     for (const [key,value] of Object.entries(submissions)) {
@@ -200,31 +223,38 @@ io.on('connection', function (socket) {
     // Grade
     for (const [key,value] of Object.entries(submissions)) {
       grades[key] = 0;
-      if (value["nombre"] !== "" && value["nombre"][0] === currChar) {
-        grades[key] += 100 / countwords["nombre"][value["fruto"]];
+      if (value["nombre"] !== "" && value["nombre"][0] === currChar.toLowerCase()) {
+        grades[key] += 100 / countwords["nombre"][value["nombre"]];
       }
-      if (value["color"] !== "" && value["color"][0] === currChar) {
-        grades[key] += 100 / countwords["color"][value["fruto"]];
+      if (value["color"] !== "" && value["color"][0] === currChar.toLowerCase()) {
+        grades[key] += 100 / countwords["color"][value["color"]];
       }
-      if (value["fruto"] !== "" && value["fruto"][0] === currChar) {
+      if (value["fruto"] !== "" && value["fruto"][0] === currChar.toLowerCase()) {
         grades[key] += 100 / countwords["fruto"][value["fruto"]];
       }
     }
     console.log("Graded");
     console.log(grades);
     // Get max
-    test = Object.keys(grades).filter(x => {
-      return object[x] === Math.max.apply(null,
-        Object.values(grades));
-    });
     test = Object.keys(grades).reduce((a, b) => grades[a] > grades[b] ? grades[a] : grades[b]);
     for (let key in submissions) {
       if (grades[key] === test) {
-        io.sockets.to(sessionID).emit('game-results', true);
+        //socket.emit('game-results', true);
+        //io.to(key).emit('game-results',true);
+        //io.to(`${key}`).emit('game-results',true);
+        io.to(key).emit('game-results',true);
+        players[key].leave('game');
       } else {
-        io.sockets.to(sessionID).emit('game-results', false);
+        //socket.emit('game-results', false);
+        //io.to(key).emit('game-results',false);
+        //io.to(`${key}`).emit('game-results',false);
+        io.to(key).emit('game-results',false);
+        players[key].leave('game');
       }
     }
-
+    gameLock = false;
+    submissions = {};
+    submitCount = 0;
+    console.log("Done");
   };
 });
