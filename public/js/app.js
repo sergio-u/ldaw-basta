@@ -32,13 +32,13 @@ var isSubmitted = false;
 function beginCountDown() {
     if (!startedCountdown) {
         startedCountdown = true;
-        disableInputs();
         $('#countdown').show();
         count = 10;
         var x = setInterval(function() {
             count -= 1;
             $('#countdown').text("Quedan: " + count + " segundos");
             if (count <= 0) {
+                disableInputs();
                 clearInterval(x);
                 console.log("Real done");
                 doSubmit();
@@ -62,8 +62,8 @@ function connectToSocketIo() {
         $("#main-screen").show();
 
         // Testing
-        $("#main-screen").show();
-        $("#game-screen").show();
+        //$("#main-screen").show();
+        //$("#game-screen").show();
     });
 
     socket.on('test', function(data) {
@@ -147,6 +147,7 @@ function doSubmit() {
         console.log(userAnswer);
         socket.emit('game-submit', userAnswer);
         isSubmitted = true;
+        disableInputs();
         beginCountDown();
     }
 }
