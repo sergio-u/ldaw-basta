@@ -117,7 +117,6 @@ io.on('connection', function (socket) {
         players[key].join('game');
       }
       currChar = randomChar();
-      currChar = 'A';
       console.log(currChar);
       io.to('game').emit('start-game', currChar);
       gameLock = true;
